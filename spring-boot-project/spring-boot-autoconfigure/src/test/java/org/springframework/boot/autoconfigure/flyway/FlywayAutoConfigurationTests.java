@@ -82,7 +82,7 @@ import static org.mockito.Mockito.mock;
 @ExtendWith(OutputCaptureExtension.class)
 class FlywayAutoConfigurationTests {
 
-	private ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 			.withConfiguration(AutoConfigurations.of(FlywayAutoConfiguration.class))
 			.withPropertyValues("spring.datasource.generate-unique-name=true");
 
@@ -499,6 +499,24 @@ class FlywayAutoConfigurationTests {
 					assertThat(context).hasSingleBean(Flyway.class);
 					Flyway flyway = context.getBean(Flyway.class);
 					assertThat(flyway.getConfiguration().getClassLoader()).isInstanceOf(CustomClassLoader.class);
+				});
+	}
+
+	@Test
+	void initSqlsWithDataSource() {
+		this.contextRunner.withUserConfiguration(EmbeddedDataSourceConfiguration.class)
+				.withPropertyValues("spring.flyway.init-sqls=SELECT 1").run((context) -> {
+					Flyway flyway = context.getBean(Flyway.class);
+					assertThat(flyway.getConfiguration().getInitSql()).isEqualTo("SELECT 1");
+				});
+	}
+
+	@Test
+	void initSqlsWithFlywayUrl() {
+		this.contextRunner.withPropertyValues("spring.flyway.url:jdbc:h2:mem:" + UUID.randomUUID(),
+				"spring.flyway.init-sqls=SELECT 1").run((context) -> {
+					Flyway flyway = context.getBean(Flyway.class);
+					assertThat(flyway.getConfiguration().getInitSql()).isEqualTo("SELECT 1");
 				});
 	}
 

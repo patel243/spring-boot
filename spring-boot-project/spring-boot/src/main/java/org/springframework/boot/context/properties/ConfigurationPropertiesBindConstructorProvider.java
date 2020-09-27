@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.lang.reflect.Constructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.boot.context.properties.bind.BindConstructorProvider;
 import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.core.Conventions;
 import org.springframework.core.KotlinDetector;
 import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.util.Assert;
@@ -36,18 +37,34 @@ class ConfigurationPropertiesBindConstructorProvider implements BindConstructorP
 
 	static final ConfigurationPropertiesBindConstructorProvider INSTANCE = new ConfigurationPropertiesBindConstructorProvider();
 
+	static final String DEDUCE_BIND_CONSTRUCTOR_ATTRIUBTE = Conventions
+			.getQualifiedAttributeName(ConfigurationPropertiesBindConstructorProvider.class, "deduceBindConstructor");
+
 	@Override
 	public Constructor<?> getBindConstructor(Bindable<?> bindable, boolean isNestedConstructorBinding) {
-		return getBindConstructor(bindable.getType().resolve(), isNestedConstructorBinding);
+		Boolean deduceBindConstructor = (Boolean) bindable.getAttribute(DEDUCE_BIND_CONSTRUCTOR_ATTRIUBTE);
+		return getBindConstructor(bindable.getType().resolve(), Boolean.TRUE.equals(deduceBindConstructor),
+				isNestedConstructorBinding);
 	}
 
-	Constructor<?> getBindConstructor(Class<?> type, boolean isNestedConstructorBinding) {
+	Constructor<?> getBindConstructor(Class<?> type, boolean deduceBindConstructor,
+			boolean isNestedConstructorBinding) {
 		if (type == null) {
 			return null;
 		}
 		Constructor<?> constructor = findConstructorBindingAnnotatedConstructor(type);
-		if (constructor == null && (isConstructorBindingAnnotatedType(type) || isNestedConstructorBinding)) {
+		if (constructor != null) {
+			return constructor;
+		}
+		boolean isConstructorBindingAnnotatedType = isConstructorBindingAnnotatedType(type);
+		if (deduceBindConstructor || isNestedConstructorBinding || isConstructorBindingAnnotatedType) {
 			constructor = deduceBindConstructor(type);
+		}
+		if (deduceBindConstructor && isConstructorBindingAnnotatedType && !isNestedConstructorBinding) {
+			Assert.state(constructor != null,
+					() -> "Unable to deduce constructor for @ConstructorBinding class " + type.getName());
+			Assert.state(constructor.getParameterCount() > 0,
+					() -> "Deduced no-args constructor for @ConstructorBinding class " + type.getName());
 		}
 		return constructor;
 	}
@@ -67,9 +84,9 @@ class ConfigurationPropertiesBindConstructorProvider implements BindConstructorP
 		for (Constructor<?> candidate : candidates) {
 			if (MergedAnnotations.from(candidate).isPresent(ConstructorBinding.class)) {
 				Assert.state(candidate.getParameterCount() > 0,
-						type.getName() + " declares @ConstructorBinding on a no-args constructor");
+						() -> type.getName() + " declares @ConstructorBinding on a no-args constructor");
 				Assert.state(constructor == null,
-						type.getName() + " has more than one @ConstructorBinding constructor");
+						() -> type.getName() + " has more than one @ConstructorBinding constructor");
 				constructor = candidate;
 			}
 		}
@@ -86,7 +103,7 @@ class ConfigurationPropertiesBindConstructorProvider implements BindConstructorP
 			return deducedKotlinBindConstructor(type);
 		}
 		Constructor<?>[] constructors = type.getDeclaredConstructors();
-		if (constructors.length == 1 && constructors[0].getParameterCount() > 0) {
+		if (constructors.length == 1) {
 			return constructors[0];
 		}
 		return null;
@@ -94,7 +111,7 @@ class ConfigurationPropertiesBindConstructorProvider implements BindConstructorP
 
 	private Constructor<?> deducedKotlinBindConstructor(Class<?> type) {
 		Constructor<?> primaryConstructor = BeanUtils.findPrimaryConstructor(type);
-		if (primaryConstructor != null && primaryConstructor.getParameterCount() > 0) {
+		if (primaryConstructor != null) {
 			return primaryConstructor;
 		}
 		return null;

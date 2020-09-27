@@ -42,7 +42,9 @@ import org.springframework.boot.buildpack.platform.build.BuildLog;
 import org.springframework.boot.buildpack.platform.build.BuildRequest;
 import org.springframework.boot.buildpack.platform.build.Builder;
 import org.springframework.boot.buildpack.platform.build.Creator;
+import org.springframework.boot.buildpack.platform.build.PullPolicy;
 import org.springframework.boot.buildpack.platform.docker.TotalProgressEvent;
+import org.springframework.boot.buildpack.platform.docker.configuration.DockerConfiguration;
 import org.springframework.boot.buildpack.platform.io.Owner;
 import org.springframework.boot.buildpack.platform.io.TarArchive;
 import org.springframework.boot.loader.tools.EntryWriter;
@@ -64,6 +66,10 @@ import org.springframework.util.StringUtils;
 public class BuildImageMojo extends AbstractPackagerMojo {
 
 	private static final String BUILDPACK_JVM_VERSION_KEY = "BP_JVM_VERSION";
+
+	static {
+		System.setProperty("org.slf4j.simpleLogger.log.org.apache.http.wire", "ERROR");
+	}
 
 	/**
 	 * Directory containing the JAR.
@@ -123,6 +129,20 @@ public class BuildImageMojo extends AbstractPackagerMojo {
 	@Parameter(property = "spring-boot.build-image.runImage", readonly = true)
 	String runImage;
 
+	/**
+	 * Alias for {@link Image#pullPolicy} to support configuration via command-line
+	 * property.
+	 */
+	@Parameter(property = "spring-boot.build-image.pullPolicy", readonly = true)
+	PullPolicy pullPolicy;
+
+	/**
+	 * Docker configuration options.
+	 * @since 2.4.0
+	 */
+	@Parameter
+	private Docker docker;
+
 	@Override
 	public void execute() throws MojoExecutionException {
 		if (this.project.getPackaging().equals("pom")) {
@@ -139,7 +159,9 @@ public class BuildImageMojo extends AbstractPackagerMojo {
 	private void buildImage() throws MojoExecutionException {
 		Libraries libraries = getLibraries(Collections.emptySet());
 		try {
-			Builder builder = new Builder(new MojoBuildLog(this::getLog));
+			DockerConfiguration dockerConfiguration = (this.docker != null) ? this.docker.asDockerConfiguration()
+					: null;
+			Builder builder = new Builder(new MojoBuildLog(this::getLog), dockerConfiguration);
 			BuildRequest request = getBuildRequest(libraries);
 			builder.build(request);
 		}
@@ -159,6 +181,9 @@ public class BuildImageMojo extends AbstractPackagerMojo {
 		}
 		if (image.runImage == null && this.runImage != null) {
 			image.setRunImage(this.runImage);
+		}
+		if (image.pullPolicy == null && this.pullPolicy != null) {
+			image.setPullPolicy(this.pullPolicy);
 		}
 		return customize(image.getBuildRequest(this.project.getArtifact(), content));
 	}
