@@ -68,7 +68,7 @@ import org.springframework.web.servlet.ModelAndView;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class DefaultErrorAttributes implements ErrorAttributes, HandlerExceptionResolver, Ordered {
 
-	private static final String ERROR_ATTRIBUTE = DefaultErrorAttributes.class.getName() + ".ERROR";
+	private static final String ERROR_INTERNAL_ATTRIBUTE = DefaultErrorAttributes.class.getName() + ".ERROR";
 
 	@Override
 	public int getOrder() {
@@ -83,7 +83,7 @@ public class DefaultErrorAttributes implements ErrorAttributes, HandlerException
 	}
 
 	private void storeErrorAttributes(HttpServletRequest request, Exception ex) {
-		request.setAttribute(ERROR_ATTRIBUTE, ex);
+		request.setAttribute(ERROR_INTERNAL_ATTRIBUTE, ex);
 	}
 
 	@Override
@@ -96,7 +96,7 @@ public class DefaultErrorAttributes implements ErrorAttributes, HandlerException
 			errorAttributes.remove("trace");
 		}
 		if (!options.isIncluded(Include.MESSAGE) && errorAttributes.get("message") != null) {
-			errorAttributes.put("message", "");
+			errorAttributes.remove("message");
 		}
 		if (!options.isIncluded(Include.BINDING_ERRORS)) {
 			errorAttributes.remove("errors");
@@ -216,8 +216,14 @@ public class DefaultErrorAttributes implements ErrorAttributes, HandlerException
 
 	@Override
 	public Throwable getError(WebRequest webRequest) {
-		Throwable exception = getAttribute(webRequest, ERROR_ATTRIBUTE);
-		return (exception != null) ? exception : getAttribute(webRequest, RequestDispatcher.ERROR_EXCEPTION);
+		Throwable exception = getAttribute(webRequest, ERROR_INTERNAL_ATTRIBUTE);
+		if (exception == null) {
+			exception = getAttribute(webRequest, RequestDispatcher.ERROR_EXCEPTION);
+		}
+		// store the exception in a well-known attribute to make it available to metrics
+		// instrumentation.
+		webRequest.setAttribute(ErrorAttributes.ERROR_ATTRIBUTE, exception, WebRequest.SCOPE_REQUEST);
+		return exception;
 	}
 
 	@SuppressWarnings("unchecked")

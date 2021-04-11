@@ -26,6 +26,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.boot.cloud.CloudPlatform;
+import org.springframework.boot.context.config.ConfigData.Option;
+import org.springframework.boot.context.config.ConfigData.PropertySourceOptions;
 import org.springframework.boot.context.config.ConfigDataEnvironmentContributor.ImportPhase;
 import org.springframework.boot.context.config.ConfigDataEnvironmentContributor.Kind;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -224,6 +226,21 @@ class ConfigDataEnvironmentContributorTests {
 	}
 
 	@Test
+	void withChildrenAfterProfileActivationMovesProfileSpecificChildren() {
+		ConfigDataEnvironmentContributor root = createBoundContributor("root");
+		ConfigDataEnvironmentContributor child1 = createBoundContributor("child1");
+		ConfigDataEnvironmentContributor grandchild = createBoundContributor(new TestResource("grandchild"),
+				new ConfigData(Collections.singleton(new MockPropertySource()),
+						PropertySourceOptions.always(Option.PROFILE_SPECIFIC)),
+				0);
+		child1 = child1.withChildren(ImportPhase.BEFORE_PROFILE_ACTIVATION, Collections.singletonList(grandchild));
+		root = root.withChildren(ImportPhase.BEFORE_PROFILE_ACTIVATION, Collections.singletonList(child1));
+		ConfigDataEnvironmentContributor child2 = createBoundContributor("child2");
+		root = root.withChildren(ImportPhase.AFTER_PROFILE_ACTIVATION, Collections.singletonList(child2));
+		assertThat(asLocationsList(root.iterator())).containsExactly("grandchild", "child2", "child1", "root");
+	}
+
+	@Test
 	void withReplacementReplacesChild() {
 		ConfigDataEnvironmentContributor root = createBoundContributor("root");
 		ConfigDataEnvironmentContributor child = createBoundContributor("child");
@@ -332,6 +349,17 @@ class ConfigDataEnvironmentContributorTests {
 		propertySource.setProperty("spring.config.use-legacy-processing", "true");
 		assertThatExceptionOfType(UseLegacyConfigProcessingException.class).isThrownBy(
 				() -> createBoundContributor(null, new ConfigData(Collections.singleton(propertySource)), 0));
+	}
+
+	@Test // gh-25029
+	void withBoundPropertiesWhenIgnoringImportsAndNothingBound() {
+		TestResource resource = new TestResource("a");
+		ConfigData configData = new ConfigData(Collections.singleton(new MockPropertySource()), Option.IGNORE_IMPORTS);
+		ConfigDataEnvironmentContributor contributor = ConfigDataEnvironmentContributor.ofUnboundImport(TEST_LOCATION,
+				resource, false, configData, 0);
+		Binder binder = new Binder(contributor.getConfigurationPropertySource());
+		ConfigDataEnvironmentContributor bound = contributor.withBoundProperties(binder);
+		assertThat(bound).isNotNull();
 	}
 
 	private ConfigDataEnvironmentContributor createBoundContributor(String location) {

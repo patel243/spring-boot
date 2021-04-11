@@ -16,9 +16,6 @@
 
 package org.springframework.boot.context.config;
 
-import java.util.Arrays;
-import java.util.HashSet;
-
 import org.apache.commons.logging.Log;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -125,8 +122,6 @@ class InvalidConfigDataPropertyExceptionTests {
 		throwOrWarnWhenWhenHasInvalidProfileSpecificPropertyThrowsException("spring.profiles.include");
 		throwOrWarnWhenWhenHasInvalidProfileSpecificPropertyThrowsException("spring.profiles.active");
 		throwOrWarnWhenWhenHasInvalidProfileSpecificPropertyThrowsException("spring.profiles.default");
-		throwOrWarnWhenWhenHasInvalidProfileSpecificPropertyThrowsException("spring.config.activate.on-profile");
-		throwOrWarnWhenWhenHasInvalidProfileSpecificPropertyThrowsException("spring.profiles");
 	}
 
 	@Test
@@ -150,7 +145,7 @@ class InvalidConfigDataPropertyExceptionTests {
 		propertySource.setProperty(name, "a");
 		ConfigDataEnvironmentContributor contributor = new ConfigDataEnvironmentContributor(Kind.BOUND_IMPORT, null,
 				null, true, propertySource, ConfigurationPropertySource.from(propertySource), null,
-				new HashSet<>(Arrays.asList(configDataOptions)), null);
+				ConfigData.Options.of(configDataOptions), null);
 		return contributor;
 	}
 
@@ -169,6 +164,16 @@ class InvalidConfigDataPropertyExceptionTests {
 		InvalidConfigDataPropertyException.throwOrWarn(this.logger, contributor);
 		verify(this.logger).warn("Property 'spring.profiles' is invalid and should be replaced with "
 				+ "'spring.config.activate.on-profile' [origin: \"spring.profiles\" from property source \"mockProperties\"]");
+	}
+
+	@Test
+	void throwOrWarnWhenHasWarningPropertyWithListSyntaxLogsWarning() {
+		MockPropertySource propertySource = new MockPropertySource();
+		propertySource.setProperty("spring.profiles[0]", "a");
+		ConfigDataEnvironmentContributor contributor = ConfigDataEnvironmentContributor.ofExisting(propertySource);
+		InvalidConfigDataPropertyException.throwOrWarn(this.logger, contributor);
+		verify(this.logger).warn("Property 'spring.profiles[0]' is invalid and should be replaced with "
+				+ "'spring.config.activate.on-profile' [origin: \"spring.profiles[0]\" from property source \"mockProperties\"]");
 	}
 
 	private static class TestConfigDataResource extends ConfigDataResource {

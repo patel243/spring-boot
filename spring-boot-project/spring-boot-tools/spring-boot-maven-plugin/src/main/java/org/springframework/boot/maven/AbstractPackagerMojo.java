@@ -182,7 +182,10 @@ public abstract class AbstractPackagerMojo extends AbstractDependencyFilterMojo 
 	 * @throws MojoExecutionException on execution error
 	 */
 	protected final Libraries getLibraries(Collection<Dependency> unpacks) throws MojoExecutionException {
-		Set<Artifact> artifacts = filterDependencies(this.project.getArtifacts(), getFilters(getAdditionalFilters()));
+		String packaging = this.project.getPackaging();
+		Set<Artifact> projectArtifacts = this.project.getArtifacts();
+		Set<Artifact> artifacts = ("war".equals(packaging)) ? projectArtifacts
+				: filterDependencies(projectArtifacts, getFilters(getAdditionalFilters()));
 		return new ArtifactsLibraries(artifacts, this.session.getProjects(), unpacks, getLog());
 	}
 
@@ -199,6 +202,42 @@ public abstract class AbstractPackagerMojo extends AbstractDependencyFilterMojo 
 			filters.add(new ScopeFilter(null, Artifact.SCOPE_SYSTEM));
 		}
 		return filters.toArray(new ArtifactsFilter[0]);
+	}
+
+	/**
+	 * Return the source {@link Artifact} to repackage. If a classifier is specified and
+	 * an artifact with that classifier exists, it is used. Otherwise, the main artifact
+	 * is used.
+	 * @param classifier the artifact classifier
+	 * @return the source artifact to repackage
+	 */
+	protected Artifact getSourceArtifact(String classifier) {
+		Artifact sourceArtifact = getArtifact(classifier);
+		return (sourceArtifact != null) ? sourceArtifact : this.project.getArtifact();
+	}
+
+	private Artifact getArtifact(String classifier) {
+		if (classifier != null) {
+			for (Artifact attachedArtifact : this.project.getAttachedArtifacts()) {
+				if (classifier.equals(attachedArtifact.getClassifier()) && attachedArtifact.getFile() != null
+						&& attachedArtifact.getFile().isFile()) {
+					return attachedArtifact;
+				}
+			}
+		}
+		return null;
+	}
+
+	protected File getTargetFile(String finalName, String classifier, File targetDirectory) {
+		String classifierSuffix = (classifier != null) ? classifier.trim() : "";
+		if (!classifierSuffix.isEmpty() && !classifierSuffix.startsWith("-")) {
+			classifierSuffix = "-" + classifierSuffix;
+		}
+		if (!targetDirectory.exists()) {
+			targetDirectory.mkdirs();
+		}
+		return new File(targetDirectory,
+				finalName + classifierSuffix + "." + this.project.getArtifact().getArtifactHandler().getExtension());
 	}
 
 	/**

@@ -642,9 +642,10 @@ class ConfigDataEnvironmentPostProcessorIntegrationTests {
 	}
 
 	@Test
-	void runWhenHasIncludedProfilesWithProfileSpecificFileThrowsException() {
-		assertThatExceptionOfType(InvalidConfigDataPropertyException.class).isThrownBy(() -> this.application
-				.run("--spring.config.name=application-include-profiles-in-profile-specific-file"));
+	void runWhenHasIncludedProfilesWithListSyntaxWithProfileSpecificDocumentThrowsException() {
+		assertThatExceptionOfType(InvalidConfigDataPropertyException.class).isThrownBy(() -> this.application.run(
+				"--spring.config.name=application-include-profiles-list-in-profile-specific-file",
+				"--spring.profiles.active=test"));
 	}
 
 	@Test
@@ -678,6 +679,15 @@ class ConfigDataEnvironmentPostProcessorIntegrationTests {
 		ConfigurableEnvironment environment = context.getEnvironment();
 		assertThat(environment.getProperty("first.property")).isEqualTo("apple");
 		assertThat(environment.getProperty("second.property")).isEqualTo("ball");
+	}
+
+	@Test // gh-24990
+	void runWhenHasProfileSpecificFileWithActiveOnProfileProperty() {
+		ConfigurableApplicationContext context = this.application
+				.run("--spring.config.name=application-activate-on-profile-in-profile-specific-file");
+		ConfigurableEnvironment environment = context.getEnvironment();
+		assertThat(environment.getProperty("test1")).isEqualTo("test1");
+		assertThat(environment.getProperty("test2")).isEqualTo("test2");
 	}
 
 	private Condition<ConfigurableEnvironment> matchingPropertySource(final String sourceName) {
