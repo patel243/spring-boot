@@ -2154,7 +2154,7 @@ The following JVM metrics are provided:
 [[production-ready-metrics-system]]
 ==== System Metrics
 Auto-configuration will enable system metrics using core Micrometer classes.
-System are published under the `system.` and `process.` meter names.
+System metrics are published under the `system.` and `process.` meter names.
 
 The following system metrics are provided:
 
@@ -2206,7 +2206,7 @@ To add to the default tags, provide one or more ``@Bean``s that implement `WebMv
 To replace the default tags, provide a `@Bean` that implements `WebMvcTagsProvider`.
 
 TIP: In some cases, exceptions handled in Web controllers are not recorded as request metrics tags.
-Applications can opt-in and record exceptions by <<spring-boot-features.adoc#boot-features-error-handling, setting handled exceptions as request parameters>>.
+Applications can opt-in and record exceptions by <<spring-boot-features.adoc#boot-features-error-handling, setting handled exceptions as request attributes>>.
 
 
 
@@ -2245,7 +2245,7 @@ To add to the default tags, provide one or more ``@Bean``s that implement `WebFl
 To replace the default tags, provide a `@Bean` that implements `WebFluxTagsProvider`.
 
 TIP: In some cases, exceptions handled in controllers and handler functions are not recorded as request metrics tags.
-Applications can opt-in and record exceptions by <<spring-boot-features.adoc#boot-features-webflux-error-handling, setting handled exceptions as request parameters>>.
+Applications can opt-in and record exceptions by <<spring-boot-features.adoc#boot-features-webflux-error-handling, setting handled exceptions as request attributes>>.
 
 
 
@@ -2609,15 +2609,15 @@ include::{include-productionreadyfeatures}/metrics/SampleMeterBinderConfiguratio
 ----
 
 Using a `MeterBinder` ensures that the correct dependency relationships are set up and that the bean is available when the metric's value is retrieved.
-By default, metrics from all `MeterBinder` beans will be automatically bound to the Spring-managed `MeterRegistry`.
 A `MeterBinder` implementation can also be useful if you find that you repeatedly instrument a suite of metrics across components or applications.
+
+NOTE: By default, metrics from all `MeterBinder` beans will be automatically bound to the Spring-managed `MeterRegistry`.
 
 
 
 [[production-ready-metrics-per-meter-properties]]
 === Customizing Individual Metrics
 If you need to apply customizations to specific `Meter` instances you can use the `io.micrometer.core.instrument.config.MeterFilter` interface.
-By default, all `MeterFilter` beans will be automatically applied to the micrometer `MeterRegistry.Config`.
 
 For example, if you want to rename the `mytag.region` tag to `mytag.area` for all meter IDs beginning with `com.example`, you can do the following:
 
@@ -2625,6 +2625,10 @@ For example, if you want to rename the `mytag.region` tag to `mytag.area` for al
 ----
 include::{include-productionreadyfeatures}/metrics/MetricsFilterConfiguration.java[tag=*]
 ----
+
+NOTE: By default, all `MeterFilter` beans will be automatically bound to the Spring-managed `MeterRegistry`.
+Make sure to register your metrics using the Spring-managed `MeterRegistry` and not any of the static methods on `Metrics`.
+These use the global registry that is not Spring-managed.
 
 
 

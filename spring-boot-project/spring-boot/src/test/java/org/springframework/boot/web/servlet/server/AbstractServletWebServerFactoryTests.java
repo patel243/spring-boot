@@ -49,6 +49,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
@@ -96,6 +97,9 @@ import org.apache.jasper.EmbeddedServletOptions;
 import org.apache.jasper.servlet.JspServlet;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.awaitility.Awaitility;
+import org.eclipse.jetty.client.api.ContentResponse;
+import org.eclipse.jetty.http2.client.HTTP2Client;
+import org.eclipse.jetty.http2.client.http.HttpClientTransportOverHTTP2;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -112,6 +116,7 @@ import org.springframework.boot.testsupport.web.servlet.ExampleServlet;
 import org.springframework.boot.web.server.Compression;
 import org.springframework.boot.web.server.ErrorPage;
 import org.springframework.boot.web.server.GracefulShutdownResult;
+import org.springframework.boot.web.server.Http2;
 import org.springframework.boot.web.server.MimeMappings;
 import org.springframework.boot.web.server.PortInUseException;
 import org.springframework.boot.web.server.Shutdown;
@@ -1119,6 +1124,39 @@ public abstract class AbstractServletWebServerFactoryTests {
 		catch (RuntimeException ex) {
 
 		}
+	}
+
+	@Test
+	protected void whenHttp2IsEnabledAndSslIsDisabledThenH2cCanBeUsed() throws Exception {
+		AbstractServletWebServerFactory factory = getFactory();
+		Http2 http2 = new Http2();
+		http2.setEnabled(true);
+		factory.setHttp2(http2);
+		this.webServer = factory.getWebServer(exampleServletRegistration());
+		this.webServer.start();
+		org.eclipse.jetty.client.HttpClient client = new org.eclipse.jetty.client.HttpClient(
+				new HttpClientTransportOverHTTP2(new HTTP2Client()));
+		client.start();
+		try {
+			ContentResponse response = client.GET("http://localhost:" + this.webServer.getPort() + "/hello");
+			assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+			assertThat(response.getContentAsString()).isEqualTo("Hello World");
+		}
+		finally {
+			client.stop();
+		}
+	}
+
+	@Test
+	protected void whenHttp2IsEnabledAndSslIsDisabledThenHttp11CanStillBeUsed()
+			throws InterruptedException, ExecutionException, IOException, URISyntaxException {
+		AbstractServletWebServerFactory factory = getFactory();
+		Http2 http2 = new Http2();
+		http2.setEnabled(true);
+		factory.setHttp2(http2);
+		this.webServer = factory.getWebServer(exampleServletRegistration());
+		this.webServer.start();
+		assertThat(getResponse("http://localhost:" + this.webServer.getPort() + "/hello")).isEqualTo("Hello World");
 	}
 
 	protected Future<Object> initiateGetRequest(int port, String path) {
