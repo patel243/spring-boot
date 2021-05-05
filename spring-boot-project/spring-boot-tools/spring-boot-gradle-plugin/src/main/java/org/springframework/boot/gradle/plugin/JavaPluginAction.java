@@ -126,7 +126,8 @@ final class JavaPluginAction implements PluginApplicationAction {
 			buildImage.setDescription("Builds an OCI image of the application using the output of the bootJar task");
 			buildImage.setGroup(BasePlugin.BUILD_GROUP);
 			buildImage.getArchiveFile().set(bootJar.get().getArchiveFile());
-			buildImage.getTargetJavaVersion().set(javaPluginConvention(project).getTargetCompatibility());
+			buildImage.getTargetJavaVersion()
+					.set(project.provider(() -> javaPluginConvention(project).getTargetCompatibility()));
 		});
 	}
 
@@ -221,6 +222,8 @@ final class JavaPluginAction implements PluginApplicationAction {
 				objectFactory.named(LibraryElements.class, LibraryElements.JAR));
 		productionRuntimeClasspath.setVisible(false);
 		productionRuntimeClasspath.setExtendsFrom(runtimeClasspath.getExtendsFrom());
+		productionRuntimeClasspath.setCanBeResolved(runtimeClasspath.isCanBeResolved());
+		productionRuntimeClasspath.setCanBeConsumed(runtimeClasspath.isCanBeConsumed());
 		runtimeClasspath.extendsFrom(developmentOnly);
 	}
 
