@@ -87,11 +87,8 @@ class ConfigDataEnvironment {
 	static final ConfigDataLocation[] DEFAULT_SEARCH_LOCATIONS;
 	static {
 		List<ConfigDataLocation> locations = new ArrayList<>();
-		locations.add(ConfigDataLocation.of("optional:classpath:/"));
-		locations.add(ConfigDataLocation.of("optional:classpath:/config/"));
-		locations.add(ConfigDataLocation.of("optional:file:./"));
-		locations.add(ConfigDataLocation.of("optional:file:./config/"));
-		locations.add(ConfigDataLocation.of("optional:file:./config/*/"));
+		locations.add(ConfigDataLocation.of("optional:classpath:/;optional:classpath:/config/"));
+		locations.add(ConfigDataLocation.of("optional:file:./;optional:file:./config/;optional:file:./config/*/"));
 		DEFAULT_SEARCH_LOCATIONS = locations.toArray(new ConfigDataLocation[0]);
 	}
 
@@ -233,7 +230,8 @@ class ConfigDataEnvironment {
 		contributors = processWithoutProfiles(contributors, importer, activationContext);
 		activationContext = withProfiles(contributors, activationContext);
 		contributors = processWithProfiles(contributors, importer, activationContext);
-		applyToEnvironment(contributors, activationContext, importer.getLoadedLocations());
+		applyToEnvironment(contributors, activationContext, importer.getLoadedLocations(),
+				importer.getOptionalLocations());
 	}
 
 	private ConfigDataEnvironmentContributors processInitial(ConfigDataEnvironmentContributors contributors,
@@ -322,10 +320,23 @@ class ConfigDataEnvironment {
 	}
 
 	private void applyToEnvironment(ConfigDataEnvironmentContributors contributors,
-			ConfigDataActivationContext activationContext, Set<ConfigDataLocation> loadedLocations) {
+			ConfigDataActivationContext activationContext, Set<ConfigDataLocation> loadedLocations,
+			Set<ConfigDataLocation> optionalLocations) {
 		checkForInvalidProperties(contributors);
-		checkMandatoryLocations(contributors, activationContext, loadedLocations);
+		checkMandatoryLocations(contributors, activationContext, loadedLocations, optionalLocations);
 		MutablePropertySources propertySources = this.environment.getPropertySources();
+		applyContributor(contributors, activationContext, propertySources);
+		DefaultPropertiesPropertySource.moveToEnd(propertySources);
+		Profiles profiles = activationContext.getProfiles();
+		this.logger.trace(LogMessage.format("Setting default profiles: %s", profiles.getDefault()));
+		this.environment.setDefaultProfiles(StringUtils.toStringArray(profiles.getDefault()));
+		this.logger.trace(LogMessage.format("Setting active profiles: %s", profiles.getActive()));
+		this.environment.setActiveProfiles(StringUtils.toStringArray(profiles.getActive()));
+		this.environmentUpdateListener.onSetProfiles(profiles);
+	}
+
+	private void applyContributor(ConfigDataEnvironmentContributors contributors,
+			ConfigDataActivationContext activationContext, MutablePropertySources propertySources) {
 		this.logger.trace("Applying config data environment contributions");
 		for (ConfigDataEnvironmentContributor contributor : contributors) {
 			PropertySource<?> propertySource = contributor.getPropertySource();
@@ -343,13 +354,6 @@ class ConfigDataEnvironment {
 				}
 			}
 		}
-		DefaultPropertiesPropertySource.moveToEnd(propertySources);
-		Profiles profiles = activationContext.getProfiles();
-		this.logger.trace(LogMessage.format("Setting default profiles: %s", profiles.getDefault()));
-		this.environment.setDefaultProfiles(StringUtils.toStringArray(profiles.getDefault()));
-		this.logger.trace(LogMessage.format("Setting active profiles: %s", profiles.getActive()));
-		this.environment.setActiveProfiles(StringUtils.toStringArray(profiles.getActive()));
-		this.environmentUpdateListener.onSetProfiles(profiles);
 	}
 
 	private void checkForInvalidProperties(ConfigDataEnvironmentContributors contributors) {
@@ -359,7 +363,8 @@ class ConfigDataEnvironment {
 	}
 
 	private void checkMandatoryLocations(ConfigDataEnvironmentContributors contributors,
-			ConfigDataActivationContext activationContext, Set<ConfigDataLocation> loadedLocations) {
+			ConfigDataActivationContext activationContext, Set<ConfigDataLocation> loadedLocations,
+			Set<ConfigDataLocation> optionalLocations) {
 		Set<ConfigDataLocation> mandatoryLocations = new LinkedHashSet<>();
 		for (ConfigDataEnvironmentContributor contributor : contributors) {
 			if (contributor.isActive(activationContext)) {
@@ -372,6 +377,7 @@ class ConfigDataEnvironment {
 			}
 		}
 		mandatoryLocations.removeAll(loadedLocations);
+		mandatoryLocations.removeAll(optionalLocations);
 		if (!mandatoryLocations.isEmpty()) {
 			for (ConfigDataLocation mandatoryLocation : mandatoryLocations) {
 				this.notFoundAction.handle(this.logger, new ConfigDataLocationNotFoundException(mandatoryLocation));

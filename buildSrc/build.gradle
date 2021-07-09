@@ -28,6 +28,7 @@ dependencies {
 	testImplementation("org.assertj:assertj-core:3.11.1")
 	testImplementation("org.apache.logging.log4j:log4j-core:2.12.1")
 	testImplementation("org.junit.jupiter:junit-jupiter:5.6.0")
+	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 checkstyle {
@@ -65,6 +66,10 @@ gradlePlugin {
 		integrationTestPlugin {
 			id = "org.springframework.boot.integration-test"
 			implementationClass = "org.springframework.boot.build.test.IntegrationTestPlugin"
+		}
+		systemTestPlugin {
+			id = "org.springframework.boot.system-test"
+			implementationClass = "org.springframework.boot.build.test.SystemTestPlugin"
 		}
 		mavenPluginPlugin {
 			id = "org.springframework.boot.maven-plugin"
